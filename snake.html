@@ -204,6 +204,9 @@
 
     document.getElementById('restartBtn').addEventListener('click',startGame);
     document.getElementById('playAgainBtn').addEventListener('click',startGame);
+    $startOverlay.addEventListener('click',startGame);
+    $startOverlay.addEventListener('touchstart',(e)=>{e.preventDefault();startGame();},{passive:false});
+    $gameOverOverlay.addEventListener('touchstart',(e)=>{e.preventDefault();startGame();},{passive:false});
     init();
   })();
   </script>
