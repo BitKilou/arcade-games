@@ -2,31 +2,44 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Breakout — Kilou's Arcade</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Press Start 2P',monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh;overflow-x:hidden}
+    body{font-family:'Press Start 2P',monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh;overflow-x:hidden;touch-action:manipulation}
     body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.15) 2px,rgba(0,0,0,.15) 4px);pointer-events:none;z-index:9999}
-    .game-container{display:flex;flex-direction:column;align-items:center;padding:1.5rem 1rem;min-height:100vh}
-    .game-header{text-align:center;margin-bottom:1rem}
-    .game-header h1{font-size:clamp(1rem,3vw,1.6rem);margin-bottom:.5rem;color:#f80;text-shadow:0 0 10px #f80,0 0 20px #f80}
-    .score-board{font-size:.65rem;color:#aaa;display:flex;gap:2rem;justify-content:center;flex-wrap:wrap}
+    .game-container{display:flex;flex-direction:column;align-items:center;padding:1rem .5rem;min-height:100vh}
+    .game-header{text-align:center;margin-bottom:.8rem}
+    .game-header h1{font-size:clamp(.8rem,3vw,1.6rem);margin-bottom:.4rem;color:#f80;text-shadow:0 0 10px #f80,0 0 20px #f80}
+    .score-board{font-size:clamp(.4rem,1.3vw,.65rem);color:#aaa;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
     .score-board span{color:#fff}
-    canvas{border:2px solid #333;border-radius:4px;display:block;background:#000;image-rendering:pixelated;box-shadow:0 0 30px rgba(255,136,0,.15)}
+    canvas{border:2px solid #333;border-radius:4px;display:block;background:#000;image-rendering:pixelated;box-shadow:0 0 30px rgba(255,136,0,.15);max-width:100%;height:auto}
     .btn{font-family:'Press Start 2P',monospace;font-size:.6rem;padding:.7rem 1.4rem;border:2px solid;border-radius:6px;background:transparent;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s;text-decoration:none;display:inline-block;margin:.5rem}
     .btn-back{color:#888;border-color:#555}.btn-back:hover{color:#fff;border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,.3)}
     .btn-play{color:#0f0;border-color:#0f0}.btn-play:hover{background:#0f0;color:#000;box-shadow:0 0 15px #0f0}
     .btn-restart{color:#f00;border-color:#f00}.btn-restart:hover{background:#f00;color:#000;box-shadow:0 0 15px #f00}
     .overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;text-align:center;gap:1.2rem}
-    .overlay h2{font-size:1.4rem;color:#f00;text-shadow:0 0 10px #f00}
+    .overlay h2{font-size:clamp(1rem,4vw,1.4rem);color:#f00;text-shadow:0 0 10px #f00}
     .overlay .final-score{font-size:.75rem;color:#ff0}
     .overlay.hidden{display:none}
-    .controls-hint{font-size:.5rem;color:#666;margin-top:.8rem;text-align:center;line-height:2}
+    .controls-hint{font-size:.5rem;color:#666;margin-top:.6rem;text-align:center;line-height:2}
     .controls-hint kbd{display:inline-block;background:#222;border:1px solid #444;border-radius:3px;padding:.15rem .4rem;color:#ccc;font-family:'Press Start 2P',monospace;font-size:.45rem}
     @keyframes blink{50%{opacity:0}}
+
+    /* Mobile controls */
+    .mobile-controls{display:none;margin-top:.8rem;user-select:none;-webkit-user-select:none;width:100%;max-width:350px}
+    @media(max-width:768px){
+      .mobile-controls{display:flex;flex-direction:column;gap:.5rem;align-items:center}
+      .controls-hint{display:none}
+    }
+    .touch-row{display:flex;justify-content:center;gap:.8rem}
+    .touch-btn{width:80px;height:56px;background:#1a1a1a;border:2px solid #f80;border-radius:8px;color:#f80;font-size:1.4rem;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .1s}
+    .touch-btn:active,.touch-btn.active{background:#f80;color:#000}
+    .touch-btn.launch-btn{width:170px;font-size:.5rem;letter-spacing:.05em;border-color:#0f0;color:#0f0}
+    .touch-btn.launch-btn:active,.touch-btn.launch-btn.active{background:#0f0;color:#000}
+    .touch-hint{font-size:.4rem;color:#555;text-align:center;margin-top:.3rem}
   </style>
 </head>
 <body>
@@ -37,7 +50,7 @@
         <div>Score: <span id="score">0</span></div>
         <div>Vies: <span id="lives">3</span></div>
         <div>Niveau: <span id="level">1</span></div>
-        <div>Meilleur: <span id="best">0</span></div>
+        <div>Best: <span id="best">0</span></div>
       </div>
     </div>
 
@@ -48,6 +61,16 @@
       <kbd>Espace</kbd> lancer la balle
     </div>
 
+    <!-- Mobile controls -->
+    <div class="mobile-controls">
+      <div class="touch-row">
+        <div class="touch-btn" data-action="left">&#9664;</div>
+        <div class="touch-btn launch-btn" data-action="launch">LANCER</div>
+        <div class="touch-btn" data-action="right">&#9654;</div>
+      </div>
+      <p class="touch-hint">ou glisse le doigt sur l'&eacute;cran</p>
+    </div>
+
     <div style="margin-top:.8rem">
       <a href="index.html" class="btn btn-back">&larr; Menu</a>
       <button class="btn btn-restart" id="restartBtn">Rejouer</button>
@@ -55,7 +78,7 @@
 
     <div class="overlay" id="startOverlay">
       <h2 style="color:#f80;text-shadow:0 0 10px #f80">&#127878; BREAKOUT</h2>
-      <p style="font-size:.55rem;color:#aaa;animation:blink 1.2s step-end infinite">Appuie sur Espace pour commencer</p>
+      <p style="font-size:.55rem;color:#aaa;animation:blink 1.2s step-end infinite">Appuie pour commencer</p>
     </div>
 
     <div class="overlay hidden" id="gameOverOverlay">
@@ -81,6 +104,7 @@
     const ROW_COLORS=['#f00','#f60','#ff0','#0f0','#0af','#a0f'];
     let paddle,ball,bricks,score,lives,level;
     let running=false,started=false,ballAttached=true,keys={},rafId=null;
+    let touchMoveX=null; // for touch drag on canvas
     const $score=document.getElementById('score'),$lives=document.getElementById('lives');
     const $level=document.getElementById('level'),$best=document.getElementById('best');
     const $finalScore=document.getElementById('finalScore'),$winScore=document.getElementById('winScore');
@@ -127,8 +151,8 @@
 
     function loop(){
       if(!running)return;rafId=requestAnimationFrame(loop);
-      if(keys['ArrowLeft']||keys['KeyA'])paddle.x-=PADDLE_SPEED;
-      if(keys['ArrowRight']||keys['KeyD'])paddle.x+=PADDLE_SPEED;
+      if(keys['ArrowLeft']||keys['touchLeft'])paddle.x-=PADDLE_SPEED;
+      if(keys['ArrowRight']||keys['touchRight'])paddle.x+=PADDLE_SPEED;
       paddle.x=Math.max(0,Math.min(W-paddle.w,paddle.x));
       if(ballAttached){ball.x=paddle.x+paddle.w/2;ball.y=paddle.y-ball.r-1;draw();return;}
       ball.x+=ball.dx;ball.y+=ball.dy;
@@ -164,6 +188,8 @@
       $startOverlay.classList.add('hidden');$gameOverOverlay.classList.add('hidden');$winOverlay.classList.add('hidden');
       init(true);running=true;started=true;cancelAnimationFrame(rafId);rafId=requestAnimationFrame(loop);
     }
+
+    /* Keyboard */
     document.addEventListener('keydown',(e)=>{
       keys[e.code]=true;
       if(['ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
@@ -171,6 +197,54 @@
       if(e.code==='Space'&&running&&ballAttached)launchBall();
     });
     document.addEventListener('keyup',(e)=>{keys[e.code]=false;});
+
+    /* Touch: drag on canvas to move paddle */
+    canvas.addEventListener('touchstart',(e)=>{
+      e.preventDefault();
+      if(!started){startGame();return;}
+      const rect=canvas.getBoundingClientRect();
+      const scaleX=W/rect.width;
+      touchMoveX=e.touches[0].clientX;
+      // Tap to launch
+      if(running&&ballAttached)launchBall();
+    },{passive:false});
+    canvas.addEventListener('touchmove',(e)=>{
+      e.preventDefault();
+      if(!running||touchMoveX===null)return;
+      const rect=canvas.getBoundingClientRect();
+      const scaleX=W/rect.width;
+      const newX=e.touches[0].clientX;
+      const delta=(newX-touchMoveX)*scaleX;
+      paddle.x+=delta;
+      paddle.x=Math.max(0,Math.min(W-paddle.w,paddle.x));
+      touchMoveX=newX;
+    },{passive:false});
+    canvas.addEventListener('touchend',(e)=>{e.preventDefault();touchMoveX=null;},{passive:false});
+
+    /* Mobile button controls */
+    document.querySelectorAll('.touch-btn').forEach(btn=>{
+      const action=btn.dataset.action;
+      let interval=null;
+      btn.addEventListener('touchstart',(e)=>{
+        e.preventDefault();btn.classList.add('active');
+        if(action==='launch'){
+          if(!started){startGame();return;}
+          if(running&&ballAttached)launchBall();
+        } else {
+          keys[action==='left'?'touchLeft':'touchRight']=true;
+        }
+      },{passive:false});
+      btn.addEventListener('touchend',(e)=>{
+        e.preventDefault();btn.classList.remove('active');
+        if(action==='left')keys['touchLeft']=false;
+        if(action==='right')keys['touchRight']=false;
+      },{passive:false});
+      btn.addEventListener('touchcancel',()=>{
+        btn.classList.remove('active');
+        keys['touchLeft']=false;keys['touchRight']=false;
+      });
+    });
+
     document.getElementById('restartBtn').addEventListener('click',startGame);
     document.getElementById('playAgainBtn').addEventListener('click',startGame);
     document.getElementById('winPlayAgainBtn').addEventListener('click',startGame);

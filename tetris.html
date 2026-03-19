@@ -2,18 +2,18 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Tetris — Kilou's Arcade</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Press Start 2P',monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh;overflow-x:hidden}
+    body{font-family:'Press Start 2P',monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh;overflow-x:hidden;touch-action:manipulation}
     body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.15) 2px,rgba(0,0,0,.15) 4px);pointer-events:none;z-index:9999}
-    .game-container{display:flex;flex-direction:column;align-items:center;padding:1.5rem 1rem;min-height:100vh}
-    .game-header{text-align:center;margin-bottom:1rem}
-    .game-header h1{font-size:clamp(1rem,3vw,1.6rem);margin-bottom:.5rem;color:#0ff;text-shadow:0 0 10px #0ff,0 0 20px #0ff}
-    .score-board{font-size:.65rem;color:#aaa;display:flex;gap:2rem;justify-content:center;flex-wrap:wrap}
+    .game-container{display:flex;flex-direction:column;align-items:center;padding:1rem .5rem;min-height:100vh}
+    .game-header{text-align:center;margin-bottom:.8rem}
+    .game-header h1{font-size:clamp(.8rem,3vw,1.6rem);margin-bottom:.4rem;color:#0ff;text-shadow:0 0 10px #0ff,0 0 20px #0ff}
+    .score-board{font-size:clamp(.4rem,1.3vw,.65rem);color:#aaa;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
     .score-board span{color:#fff}
     canvas{border:2px solid #333;border-radius:4px;display:block;background:#000;image-rendering:pixelated;box-shadow:0 0 30px rgba(0,255,255,.15)}
     .tetris-layout{display:flex;gap:1.2rem;align-items:flex-start}
@@ -24,12 +24,28 @@
     .btn-play{color:#0f0;border-color:#0f0}.btn-play:hover{background:#0f0;color:#000;box-shadow:0 0 15px #0f0}
     .btn-restart{color:#f00;border-color:#f00}.btn-restart:hover{background:#f00;color:#000;box-shadow:0 0 15px #f00}
     .overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;text-align:center;gap:1.2rem}
-    .overlay h2{font-size:1.4rem;color:#f00;text-shadow:0 0 10px #f00}
+    .overlay h2{font-size:clamp(1rem,4vw,1.4rem);color:#f00;text-shadow:0 0 10px #f00}
     .overlay .final-score{font-size:.75rem;color:#ff0}
     .overlay.hidden{display:none}
-    .controls-hint{font-size:.5rem;color:#666;margin-top:.8rem;text-align:center;line-height:2}
+    .controls-hint{font-size:.5rem;color:#666;margin-top:.6rem;text-align:center;line-height:2}
     .controls-hint kbd{display:inline-block;background:#222;border:1px solid #444;border-radius:3px;padding:.15rem .4rem;color:#ccc;font-family:'Press Start 2P',monospace;font-size:.45rem}
     @keyframes blink{50%{opacity:0}}
+
+    /* Mobile controls */
+    .mobile-controls{display:none;margin-top:.8rem;user-select:none;-webkit-user-select:none;width:100%;max-width:350px}
+    @media(max-width:768px){
+      .mobile-controls{display:flex;flex-direction:column;gap:.5rem}
+      .controls-hint{display:none}
+      .side-panel{display:none}
+    }
+    .touch-row{display:flex;justify-content:center;gap:.5rem}
+    .touch-btn{width:60px;height:52px;background:#1a1a1a;border:2px solid #0ff;border-radius:8px;color:#0ff;font-size:1.2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .1s}
+    .touch-btn:active,.touch-btn.active{background:#0ff;color:#000}
+    .touch-btn.wide{width:130px;font-size:.5rem;letter-spacing:.05em}
+    .touch-btn.rotate-btn{border-color:#ff0;color:#ff0}
+    .touch-btn.rotate-btn:active,.touch-btn.rotate-btn.active{background:#ff0;color:#000}
+    .touch-btn.drop-btn{border-color:#f00;color:#f00}
+    .touch-btn.drop-btn:active,.touch-btn.drop-btn.active{background:#f00;color:#000}
   </style>
 </head>
 <body>
@@ -40,7 +56,7 @@
         <div>Score: <span id="score">0</span></div>
         <div>Lignes: <span id="lines">0</span></div>
         <div>Niveau: <span id="level">1</span></div>
-        <div>Meilleur: <span id="best">0</span></div>
+        <div>Best: <span id="best">0</span></div>
       </div>
     </div>
 
@@ -60,6 +76,19 @@
       <kbd>P</kbd> pause
     </div>
 
+    <!-- Mobile controls -->
+    <div class="mobile-controls">
+      <div class="touch-row">
+        <div class="touch-btn rotate-btn" data-action="rotate">&#x21BB;</div>
+        <div class="touch-btn drop-btn wide" data-action="drop">DROP</div>
+      </div>
+      <div class="touch-row">
+        <div class="touch-btn" data-action="left">&#9664;</div>
+        <div class="touch-btn" data-action="down">&#9660;</div>
+        <div class="touch-btn" data-action="right">&#9654;</div>
+      </div>
+    </div>
+
     <div style="margin-top:.8rem">
       <a href="index.html" class="btn btn-back">&larr; Menu</a>
       <button class="btn btn-restart" id="restartBtn">Rejouer</button>
@@ -67,7 +96,7 @@
 
     <div class="overlay" id="startOverlay">
       <h2 style="color:#0ff;text-shadow:0 0 10px #0ff">&#129513; TETRIS</h2>
-      <p style="font-size:.55rem;color:#aaa;animation:blink 1.2s step-end infinite">Appuie sur une touche pour commencer</p>
+      <p style="font-size:.55rem;color:#aaa;animation:blink 1.2s step-end infinite">Appuie pour commencer</p>
     </div>
 
     <div class="overlay hidden" id="gameOverOverlay">
@@ -159,19 +188,49 @@
       updateUI();current=randomPiece();next=randomPiece();drawNext();
       running=true;paused=false;started=true;cancelAnimationFrame(rafId);rafId=requestAnimationFrame(loop);
     }
+
+    function handleAction(action){
+      if(!started){startGame();return;}
+      if(!running||paused)return;
+      switch(action){
+        case'left':if(!collides(current.shape,current.x-1,current.y))current.x--;break;
+        case'right':if(!collides(current.shape,current.x+1,current.y))current.x++;break;
+        case'down':if(!collides(current.shape,current.x,current.y+1)){current.y++;score+=1;updateUI();}break;
+        case'rotate':{const rotated=rotate(current.shape);for(const kick of[0,-1,1,-2,2]){if(!collides(rotated,current.x+kick,current.y)){current.shape=rotated;current.x+=kick;break;}}break;}
+        case'drop':{let dropped=0;while(!collides(current.shape,current.x,current.y+1)){current.y++;dropped++;}score+=dropped*2;updateUI();lock();dropTime=0;break;}
+      }
+    }
+
+    /* Keyboard */
     document.addEventListener('keydown',(e)=>{
       if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
       if(!started){startGame();return;}
       if(e.code==='KeyP'&&running){paused=!paused;if(!paused)lastTime=performance.now();return;}
       if(!running||paused)return;
       switch(e.code){
-        case'ArrowLeft':if(!collides(current.shape,current.x-1,current.y))current.x--;break;
-        case'ArrowRight':if(!collides(current.shape,current.x+1,current.y))current.x++;break;
-        case'ArrowDown':if(!collides(current.shape,current.x,current.y+1)){current.y++;score+=1;updateUI();}break;
-        case'ArrowUp':{const rotated=rotate(current.shape);for(const kick of[0,-1,1,-2,2]){if(!collides(rotated,current.x+kick,current.y)){current.shape=rotated;current.x+=kick;break;}}break;}
-        case'Space':{let dropped=0;while(!collides(current.shape,current.x,current.y+1)){current.y++;dropped++;}score+=dropped*2;updateUI();lock();dropTime=0;break;}
+        case'ArrowLeft':handleAction('left');break;
+        case'ArrowRight':handleAction('right');break;
+        case'ArrowDown':handleAction('down');break;
+        case'ArrowUp':handleAction('rotate');break;
+        case'Space':handleAction('drop');break;
       }
     });
+
+    /* Mobile touch buttons */
+    document.querySelectorAll('.touch-btn').forEach(btn=>{
+      const action=btn.dataset.action;
+      let interval=null;
+      btn.addEventListener('touchstart',(e)=>{
+        e.preventDefault();btn.classList.add('active');
+        handleAction(action);
+        if(action==='left'||action==='right'||action==='down'){
+          interval=setInterval(()=>handleAction(action),100);
+        }
+      },{passive:false});
+      btn.addEventListener('touchend',(e)=>{e.preventDefault();btn.classList.remove('active');clearInterval(interval);},{passive:false});
+      btn.addEventListener('touchcancel',(e)=>{btn.classList.remove('active');clearInterval(interval);});
+    });
+
     document.getElementById('restartBtn').addEventListener('click',startGame);
     document.getElementById('playAgainBtn').addEventListener('click',startGame);
     draw();drawNext();

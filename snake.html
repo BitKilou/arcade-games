@@ -2,31 +2,47 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Snake — Kilou's Arcade</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Press Start 2P',monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh;overflow-x:hidden}
+    body{font-family:'Press Start 2P',monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh;overflow-x:hidden;touch-action:manipulation}
     body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.15) 2px,rgba(0,0,0,.15) 4px);pointer-events:none;z-index:9999}
-    .game-container{display:flex;flex-direction:column;align-items:center;padding:1.5rem 1rem;min-height:100vh}
-    .game-header{text-align:center;margin-bottom:1rem}
-    .game-header h1{font-size:clamp(1rem,3vw,1.6rem);margin-bottom:.5rem;color:#0f0;text-shadow:0 0 10px #0f0,0 0 20px #0f0}
-    .score-board{font-size:.65rem;color:#aaa;display:flex;gap:2rem;justify-content:center;flex-wrap:wrap}
+    .game-container{display:flex;flex-direction:column;align-items:center;padding:1rem .5rem;min-height:100vh}
+    .game-header{text-align:center;margin-bottom:.8rem}
+    .game-header h1{font-size:clamp(.8rem,3vw,1.6rem);margin-bottom:.4rem;color:#0f0;text-shadow:0 0 10px #0f0,0 0 20px #0f0}
+    .score-board{font-size:clamp(.45rem,1.5vw,.65rem);color:#aaa;display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap}
     .score-board span{color:#fff}
-    canvas{border:2px solid #333;border-radius:4px;display:block;background:#000;image-rendering:pixelated;box-shadow:0 0 30px rgba(0,255,0,.15)}
+    canvas{border:2px solid #333;border-radius:4px;display:block;background:#000;image-rendering:pixelated;box-shadow:0 0 30px rgba(0,255,0,.15);max-width:100%;height:auto}
     .btn{font-family:'Press Start 2P',monospace;font-size:.6rem;padding:.7rem 1.4rem;border:2px solid;border-radius:6px;background:transparent;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s;text-decoration:none;display:inline-block;margin:.5rem}
     .btn-back{color:#888;border-color:#555}.btn-back:hover{color:#fff;border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,.3)}
     .btn-play{color:#0f0;border-color:#0f0}.btn-play:hover{background:#0f0;color:#000;box-shadow:0 0 15px #0f0}
     .btn-restart{color:#f00;border-color:#f00}.btn-restart:hover{background:#f00;color:#000;box-shadow:0 0 15px #f00}
     .overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;text-align:center;gap:1.2rem}
-    .overlay h2{font-size:1.4rem;color:#f00;text-shadow:0 0 10px #f00}
+    .overlay h2{font-size:clamp(1rem,4vw,1.4rem);color:#f00;text-shadow:0 0 10px #f00}
     .overlay .final-score{font-size:.75rem;color:#ff0}
     .overlay.hidden{display:none}
-    .controls-hint{font-size:.5rem;color:#666;margin-top:.8rem;text-align:center;line-height:2}
+    .controls-hint{font-size:.5rem;color:#666;margin-top:.6rem;text-align:center;line-height:2}
     .controls-hint kbd{display:inline-block;background:#222;border:1px solid #444;border-radius:3px;padding:.15rem .4rem;color:#ccc;font-family:'Press Start 2P',monospace;font-size:.45rem}
     @keyframes blink{50%{opacity:0}}
+
+    /* Mobile D-Pad */
+    .mobile-controls{display:none;margin-top:.8rem;user-select:none;-webkit-user-select:none}
+    @media(max-width:768px){
+      .mobile-controls{display:block}
+      .controls-hint{display:none}
+    }
+    .dpad{position:relative;width:160px;height:160px;margin:0 auto}
+    .dpad-btn{position:absolute;width:52px;height:52px;background:#1a1a1a;border:2px solid #0f0;border-radius:8px;color:#0f0;font-size:1.4rem;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .1s}
+    .dpad-btn:active,.dpad-btn.active{background:#0f0;color:#000}
+    .dpad-up{top:0;left:50%;transform:translateX(-50%)}
+    .dpad-down{bottom:0;left:50%;transform:translateX(-50%)}
+    .dpad-left{left:0;top:50%;transform:translateY(-50%)}
+    .dpad-right{right:0;top:50%;transform:translateY(-50%)}
+    .dpad-center{top:50%;left:50%;transform:translate(-50%,-50%);border-color:#555;color:#555;font-size:.5rem;width:48px;height:48px}
+    .dpad-center:active{background:#555;color:#000}
   </style>
 </head>
 <body>
@@ -46,6 +62,17 @@
       &nbsp;|&nbsp; <kbd>Espace</kbd> pause
     </div>
 
+    <!-- Mobile D-Pad -->
+    <div class="mobile-controls">
+      <div class="dpad">
+        <div class="dpad-btn dpad-up" data-dir="up">&#9650;</div>
+        <div class="dpad-btn dpad-left" data-dir="left">&#9664;</div>
+        <div class="dpad-btn dpad-center" data-dir="pause">| |</div>
+        <div class="dpad-btn dpad-right" data-dir="right">&#9654;</div>
+        <div class="dpad-btn dpad-down" data-dir="down">&#9660;</div>
+      </div>
+    </div>
+
     <div style="margin-top:.8rem">
       <a href="index.html" class="btn btn-back">&larr; Menu</a>
       <button class="btn btn-restart" id="restartBtn">Rejouer</button>
@@ -53,7 +80,7 @@
 
     <div class="overlay" id="startOverlay">
       <h2 style="color:#0f0;text-shadow:0 0 10px #0f0">&#127894; SNAKE</h2>
-      <p style="font-size:.55rem;color:#aaa;animation:blink 1.2s step-end infinite">Appuie sur une fl&egrave;che pour commencer</p>
+      <p style="font-size:.55rem;color:#aaa;animation:blink 1.2s step-end infinite" id="startText">Appuie sur une fl&egrave;che pour commencer</p>
     </div>
 
     <div class="overlay hidden" id="gameOverOverlay">
@@ -75,6 +102,8 @@
     const $startOverlay=document.getElementById('startOverlay'),$gameOverOverlay=document.getElementById('gameOverOverlay');
     let bestScore=parseInt(localStorage.getItem('arcade-hs-snake'))||0;
     $best.textContent=bestScore;
+    const isMobile='ontouchstart' in window;
+    if(isMobile)document.getElementById('startText').textContent='Appuie sur une direction pour commencer';
 
     function init(){
       snake=[{x:Math.floor(COLS/2),y:Math.floor(ROWS/2)}];
@@ -125,6 +154,19 @@
       $startOverlay.classList.add('hidden');$gameOverOverlay.classList.add('hidden');
       init();running=true;paused=false;started=true;clearTimeout(loopId);tick();
     }
+
+    function handleDirection(dir){
+      if(!started){startGame();}
+      if(dir==='pause'&&running){paused=!paused;if(!paused)tick();return;}
+      switch(dir){
+        case'up':if(direction.y===0)nextDirection={x:0,y:-1};break;
+        case'down':if(direction.y===0)nextDirection={x:0,y:1};break;
+        case'left':if(direction.x===0)nextDirection={x:-1,y:0};break;
+        case'right':if(direction.x===0)nextDirection={x:1,y:0};break;
+      }
+    }
+
+    /* Keyboard */
     document.addEventListener('keydown',(e)=>{
       if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
       if(!started&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))startGame();
@@ -136,6 +178,30 @@
         case'ArrowRight':if(direction.x===0)nextDirection={x:1,y:0};break;
       }
     });
+
+    /* Mobile D-Pad touch */
+    document.querySelectorAll('.dpad-btn').forEach(btn=>{
+      const dir=btn.dataset.dir;
+      btn.addEventListener('touchstart',(e)=>{e.preventDefault();btn.classList.add('active');handleDirection(dir);},{passive:false});
+      btn.addEventListener('touchend',(e)=>{e.preventDefault();btn.classList.remove('active');},{passive:false});
+    });
+
+    /* Swipe gestures on canvas */
+    let touchStartX=0,touchStartY=0;
+    canvas.addEventListener('touchstart',(e)=>{
+      e.preventDefault();
+      const t=e.touches[0];touchStartX=t.clientX;touchStartY=t.clientY;
+      if(!started)startGame();
+    },{passive:false});
+    canvas.addEventListener('touchend',(e)=>{
+      e.preventDefault();
+      const t=e.changedTouches[0];
+      const dx=t.clientX-touchStartX,dy=t.clientY-touchStartY;
+      if(Math.abs(dx)<10&&Math.abs(dy)<10)return;
+      if(Math.abs(dx)>Math.abs(dy)){handleDirection(dx>0?'right':'left');}
+      else{handleDirection(dy>0?'down':'up');}
+    },{passive:false});
+
     document.getElementById('restartBtn').addEventListener('click',startGame);
     document.getElementById('playAgainBtn').addEventListener('click',startGame);
     init();
