@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake — Kilou's Arcade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Press Start 2P',monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh;overflow-x:hidden}
+    body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.15) 2px,rgba(0,0,0,.15) 4px);pointer-events:none;z-index:9999}
+    .game-container{display:flex;flex-direction:column;align-items:center;padding:1.5rem 1rem;min-height:100vh}
+    .game-header{text-align:center;margin-bottom:1rem}
+    .game-header h1{font-size:clamp(1rem,3vw,1.6rem);margin-bottom:.5rem;color:#0f0;text-shadow:0 0 10px #0f0,0 0 20px #0f0}
+    .score-board{font-size:.65rem;color:#aaa;display:flex;gap:2rem;justify-content:center;flex-wrap:wrap}
+    .score-board span{color:#fff}
+    canvas{border:2px solid #333;border-radius:4px;display:block;background:#000;image-rendering:pixelated;box-shadow:0 0 30px rgba(0,255,0,.15)}
+    .btn{font-family:'Press Start 2P',monospace;font-size:.6rem;padding:.7rem 1.4rem;border:2px solid;border-radius:6px;background:transparent;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s;text-decoration:none;display:inline-block;margin:.5rem}
+    .btn-back{color:#888;border-color:#555}.btn-back:hover{color:#fff;border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,.3)}
+    .btn-play{color:#0f0;border-color:#0f0}.btn-play:hover{background:#0f0;color:#000;box-shadow:0 0 15px #0f0}
+    .btn-restart{color:#f00;border-color:#f00}.btn-restart:hover{background:#f00;color:#000;box-shadow:0 0 15px #f00}
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;text-align:center;gap:1.2rem}
+    .overlay h2{font-size:1.4rem;color:#f00;text-shadow:0 0 10px #f00}
+    .overlay .final-score{font-size:.75rem;color:#ff0}
+    .overlay.hidden{display:none}
+    .controls-hint{font-size:.5rem;color:#666;margin-top:.8rem;text-align:center;line-height:2}
+    .controls-hint kbd{display:inline-block;background:#222;border:1px solid #444;border-radius:3px;padding:.15rem .4rem;color:#ccc;font-family:'Press Start 2P',monospace;font-size:.45rem}
+    @keyframes blink{50%{opacity:0}}
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <div class="game-header">
+      <h1>&#127894; Snake</h1>
+      <div class="score-board">
+        <div>Score: <span id="score">0</span></div>
+        <div>Meilleur: <span id="best">0</span></div>
+      </div>
+    </div>
+
+    <canvas id="game" width="400" height="400"></canvas>
+
+    <div class="controls-hint">
+      <kbd>&larr;</kbd> <kbd>&uarr;</kbd> <kbd>&darr;</kbd> <kbd>&rarr;</kbd> pour diriger
+      &nbsp;|&nbsp; <kbd>Espace</kbd> pause
+    </div>
+
+    <div style="margin-top:.8rem">
+      <a href="index.html" class="btn btn-back">&larr; Menu</a>
+      <button class="btn btn-restart" id="restartBtn">Rejouer</button>
+    </div>
+
+    <div class="overlay" id="startOverlay">
+      <h2 style="color:#0f0;text-shadow:0 0 10px #0f0">&#127894; SNAKE</h2>
+      <p style="font-size:.55rem;color:#aaa;animation:blink 1.2s step-end infinite">Appuie sur une fl&egrave;che pour commencer</p>
+    </div>
+
+    <div class="overlay hidden" id="gameOverOverlay">
+      <h2>GAME OVER</h2>
+      <p class="final-score">Score: <span id="finalScore">0</span></p>
+      <button class="btn btn-play" id="playAgainBtn">Rejouer</button>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    'use strict';
+    const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+    const GRID=20,COLS=canvas.width/GRID,ROWS=canvas.height/GRID,INITIAL_SPEED=130,SPEED_STEP=2;
+    let snake,direction,nextDirection,food,score,speed;
+    let running=false,paused=false,started=false,loopId=null;
+    const $score=document.getElementById('score'),$best=document.getElementById('best');
+    const $finalScore=document.getElementById('finalScore');
+    const $startOverlay=document.getElementById('startOverlay'),$gameOverOverlay=document.getElementById('gameOverOverlay');
+    let bestScore=parseInt(localStorage.getItem('arcade-hs-snake'))||0;
+    $best.textContent=bestScore;
+
+    function init(){
+      snake=[{x:Math.floor(COLS/2),y:Math.floor(ROWS/2)}];
+      direction={x:1,y:0};nextDirection={...direction};score=0;speed=INITIAL_SPEED;
+      $score.textContent=score;placeFood();draw();
+    }
+    function placeFood(){
+      let pos;do{pos={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)};}
+      while(snake.some(s=>s.x===pos.x&&s.y===pos.y));food=pos;
+    }
+    function tick(){
+      if(!running||paused)return;
+      direction={...nextDirection};
+      const head={x:snake[0].x+direction.x,y:snake[0].y+direction.y};
+      if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS)return gameOver();
+      if(snake.some(s=>s.x===head.x&&s.y===head.y))return gameOver();
+      snake.unshift(head);
+      if(head.x===food.x&&head.y===food.y){score++;$score.textContent=score;speed=Math.max(50,speed-SPEED_STEP);placeFood();}
+      else{snake.pop();}
+      draw();loopId=setTimeout(tick,speed);
+    }
+    function draw(){
+      ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.strokeStyle='#151515';ctx.lineWidth=0.5;
+      for(let x=0;x<=canvas.width;x+=GRID){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}
+      for(let y=0;y<=canvas.height;y+=GRID){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}
+      ctx.fillStyle='#f00';ctx.shadowColor='#f00';ctx.shadowBlur=10;
+      ctx.beginPath();ctx.arc(food.x*GRID+GRID/2,food.y*GRID+GRID/2,GRID/2.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+      snake.forEach((seg,i)=>{
+        const brightness=1-(i/snake.length)*0.5;
+        ctx.fillStyle=`rgba(0,${Math.floor(255*brightness)},0,1)`;
+        ctx.shadowColor='#0f0';ctx.shadowBlur=i===0?12:4;
+        ctx.fillRect(seg.x*GRID+1,seg.y*GRID+1,GRID-2,GRID-2);
+      });ctx.shadowBlur=0;
+      if(snake.length>0){
+        const h=snake[0];ctx.fillStyle='#000';
+        const cx=h.x*GRID+GRID/2,cy=h.y*GRID+GRID/2,eyeOff=4;
+        if(direction.x!==0){ctx.fillRect(cx+direction.x*3-1,cy-eyeOff-1,3,3);ctx.fillRect(cx+direction.x*3-1,cy+eyeOff-1,3,3);}
+        else{ctx.fillRect(cx-eyeOff-1,cy+direction.y*3-1,3,3);ctx.fillRect(cx+eyeOff-1,cy+direction.y*3-1,3,3);}
+      }
+    }
+    function gameOver(){
+      running=false;
+      if(score>bestScore){bestScore=score;localStorage.setItem('arcade-hs-snake',bestScore);$best.textContent=bestScore;}
+      $finalScore.textContent=score;$gameOverOverlay.classList.remove('hidden');
+    }
+    function startGame(){
+      $startOverlay.classList.add('hidden');$gameOverOverlay.classList.add('hidden');
+      init();running=true;paused=false;started=true;clearTimeout(loopId);tick();
+    }
+    document.addEventListener('keydown',(e)=>{
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
+      if(!started&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))startGame();
+      if(e.code==='Space'&&running){paused=!paused;if(!paused)tick();return;}
+      switch(e.code){
+        case'ArrowUp':if(direction.y===0)nextDirection={x:0,y:-1};break;
+        case'ArrowDown':if(direction.y===0)nextDirection={x:0,y:1};break;
+        case'ArrowLeft':if(direction.x===0)nextDirection={x:-1,y:0};break;
+        case'ArrowRight':if(direction.x===0)nextDirection={x:1,y:0};break;
+      }
+    });
+    document.getElementById('restartBtn').addEventListener('click',startGame);
+    document.getElementById('playAgainBtn').addEventListener('click',startGame);
+    init();
+  })();
+  </script>
+</body>
+</html>

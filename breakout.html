@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Breakout — Kilou's Arcade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Press Start 2P',monospace;background:#0a0a0a;color:#e0e0e0;min-height:100vh;overflow-x:hidden}
+    body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.15) 2px,rgba(0,0,0,.15) 4px);pointer-events:none;z-index:9999}
+    .game-container{display:flex;flex-direction:column;align-items:center;padding:1.5rem 1rem;min-height:100vh}
+    .game-header{text-align:center;margin-bottom:1rem}
+    .game-header h1{font-size:clamp(1rem,3vw,1.6rem);margin-bottom:.5rem;color:#f80;text-shadow:0 0 10px #f80,0 0 20px #f80}
+    .score-board{font-size:.65rem;color:#aaa;display:flex;gap:2rem;justify-content:center;flex-wrap:wrap}
+    .score-board span{color:#fff}
+    canvas{border:2px solid #333;border-radius:4px;display:block;background:#000;image-rendering:pixelated;box-shadow:0 0 30px rgba(255,136,0,.15)}
+    .btn{font-family:'Press Start 2P',monospace;font-size:.6rem;padding:.7rem 1.4rem;border:2px solid;border-radius:6px;background:transparent;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s;text-decoration:none;display:inline-block;margin:.5rem}
+    .btn-back{color:#888;border-color:#555}.btn-back:hover{color:#fff;border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,.3)}
+    .btn-play{color:#0f0;border-color:#0f0}.btn-play:hover{background:#0f0;color:#000;box-shadow:0 0 15px #0f0}
+    .btn-restart{color:#f00;border-color:#f00}.btn-restart:hover{background:#f00;color:#000;box-shadow:0 0 15px #f00}
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;text-align:center;gap:1.2rem}
+    .overlay h2{font-size:1.4rem;color:#f00;text-shadow:0 0 10px #f00}
+    .overlay .final-score{font-size:.75rem;color:#ff0}
+    .overlay.hidden{display:none}
+    .controls-hint{font-size:.5rem;color:#666;margin-top:.8rem;text-align:center;line-height:2}
+    .controls-hint kbd{display:inline-block;background:#222;border:1px solid #444;border-radius:3px;padding:.15rem .4rem;color:#ccc;font-family:'Press Start 2P',monospace;font-size:.45rem}
+    @keyframes blink{50%{opacity:0}}
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <div class="game-header">
+      <h1>&#127878; Breakout</h1>
+      <div class="score-board">
+        <div>Score: <span id="score">0</span></div>
+        <div>Vies: <span id="lives">3</span></div>
+        <div>Niveau: <span id="level">1</span></div>
+        <div>Meilleur: <span id="best">0</span></div>
+      </div>
+    </div>
+
+    <canvas id="game" width="480" height="500"></canvas>
+
+    <div class="controls-hint">
+      <kbd>&larr;</kbd><kbd>&rarr;</kbd> d&eacute;placer la raquette &nbsp;|&nbsp;
+      <kbd>Espace</kbd> lancer la balle
+    </div>
+
+    <div style="margin-top:.8rem">
+      <a href="index.html" class="btn btn-back">&larr; Menu</a>
+      <button class="btn btn-restart" id="restartBtn">Rejouer</button>
+    </div>
+
+    <div class="overlay" id="startOverlay">
+      <h2 style="color:#f80;text-shadow:0 0 10px #f80">&#127878; BREAKOUT</h2>
+      <p style="font-size:.55rem;color:#aaa;animation:blink 1.2s step-end infinite">Appuie sur Espace pour commencer</p>
+    </div>
+
+    <div class="overlay hidden" id="gameOverOverlay">
+      <h2>GAME OVER</h2>
+      <p class="final-score">Score: <span id="finalScore">0</span></p>
+      <button class="btn btn-play" id="playAgainBtn">Rejouer</button>
+    </div>
+
+    <div class="overlay hidden" id="winOverlay">
+      <h2 style="color:#0f0;text-shadow:0 0 10px #0f0">VICTOIRE !</h2>
+      <p class="final-score">Score final: <span id="winScore">0</span></p>
+      <button class="btn btn-play" id="winPlayAgainBtn">Rejouer</button>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    'use strict';
+    const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+    const W=canvas.width,H=canvas.height;
+    const PADDLE_W=80,PADDLE_H=12,PADDLE_SPEED=7,BALL_R=5,INITIAL_BALL_SPEED=4;
+    const BRICK_ROWS=6,BRICK_COLS=10,BRICK_W=(W-20)/BRICK_COLS,BRICK_H=18,BRICK_PAD=2,BRICK_TOP=50,BRICK_LEFT=10,MAX_LEVEL=5;
+    const ROW_COLORS=['#f00','#f60','#ff0','#0f0','#0af','#a0f'];
+    let paddle,ball,bricks,score,lives,level;
+    let running=false,started=false,ballAttached=true,keys={},rafId=null;
+    const $score=document.getElementById('score'),$lives=document.getElementById('lives');
+    const $level=document.getElementById('level'),$best=document.getElementById('best');
+    const $finalScore=document.getElementById('finalScore'),$winScore=document.getElementById('winScore');
+    const $startOverlay=document.getElementById('startOverlay'),$gameOverOverlay=document.getElementById('gameOverOverlay'),$winOverlay=document.getElementById('winOverlay');
+    let bestScore=parseInt(localStorage.getItem('arcade-hs-breakout'))||0;
+    $best.textContent=bestScore;
+
+    function init(resetScore){
+      paddle={x:W/2-PADDLE_W/2,y:H-30,w:PADDLE_W,h:PADDLE_H};
+      ball={x:0,y:0,dx:0,dy:0,r:BALL_R};attachBall();
+      if(resetScore){score=0;lives=3;level=1;}
+      buildBricks();updateUI();draw();
+    }
+    function attachBall(){ballAttached=true;ball.x=paddle.x+paddle.w/2;ball.y=paddle.y-ball.r-1;ball.dx=0;ball.dy=0;}
+    function launchBall(){
+      if(!ballAttached)return;ballAttached=false;
+      const sm=1+(level-1)*0.15,spd=INITIAL_BALL_SPEED*sm,angle=-Math.PI/2+(Math.random()-0.5)*0.6;
+      ball.dx=Math.cos(angle)*spd;ball.dy=Math.sin(angle)*spd;
+    }
+    function buildBricks(){
+      bricks=[];const rows=Math.min(BRICK_ROWS,3+level);
+      for(let r=0;r<rows;r++)for(let c=0;c<BRICK_COLS;c++){
+        let hp=1;if(level>=3&&r<2)hp=2;if(level>=5&&r===0)hp=3;
+        bricks.push({x:BRICK_LEFT+c*BRICK_W,y:BRICK_TOP+r*(BRICK_H+BRICK_PAD),w:BRICK_W-BRICK_PAD,h:BRICK_H,color:ROW_COLORS[r%ROW_COLORS.length],hp,maxHp:hp,alive:true});
+      }
+    }
+    function updateUI(){$score.textContent=score;$lives.textContent=lives;$level.textContent=level;}
+
+    function draw(){
+      ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,H);
+      bricks.forEach(b=>{
+        if(!b.alive)return;
+        ctx.globalAlpha=0.4+0.6*(b.hp/b.maxHp);ctx.fillStyle=b.color;ctx.shadowColor=b.color;ctx.shadowBlur=6;
+        ctx.fillRect(b.x,b.y,b.w,b.h);
+        ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(b.x,b.y,b.w,3);ctx.shadowBlur=0;ctx.globalAlpha=1;
+        if(b.maxHp>1){ctx.fillStyle='#fff';ctx.font='8px "Press Start 2P"';ctx.textAlign='center';ctx.fillText(b.hp,b.x+b.w/2,b.y+b.h/2+3);}
+      });
+      ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=10;
+      ctx.fillRect(paddle.x,paddle.y,paddle.w,paddle.h);ctx.shadowBlur=0;
+      ctx.fillStyle='#f80';ctx.shadowColor='#f80';ctx.shadowBlur=12;
+      ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+      for(let i=0;i<lives;i++){ctx.fillStyle='#f80';ctx.beginPath();ctx.arc(20+i*18,H-10,5,0,Math.PI*2);ctx.fill();}
+    }
+
+    function loop(){
+      if(!running)return;rafId=requestAnimationFrame(loop);
+      if(keys['ArrowLeft']||keys['KeyA'])paddle.x-=PADDLE_SPEED;
+      if(keys['ArrowRight']||keys['KeyD'])paddle.x+=PADDLE_SPEED;
+      paddle.x=Math.max(0,Math.min(W-paddle.w,paddle.x));
+      if(ballAttached){ball.x=paddle.x+paddle.w/2;ball.y=paddle.y-ball.r-1;draw();return;}
+      ball.x+=ball.dx;ball.y+=ball.dy;
+      if(ball.x-ball.r<=0){ball.x=ball.r;ball.dx=Math.abs(ball.dx);}
+      if(ball.x+ball.r>=W){ball.x=W-ball.r;ball.dx=-Math.abs(ball.dx);}
+      if(ball.y-ball.r<=0){ball.y=ball.r;ball.dy=Math.abs(ball.dy);}
+      if(ball.y+ball.r>=H){lives--;updateUI();if(lives<=0)return gameOver();attachBall();draw();return;}
+      if(ball.dy>0&&ball.y+ball.r>=paddle.y&&ball.y+ball.r<=paddle.y+paddle.h+4&&ball.x>=paddle.x&&ball.x<=paddle.x+paddle.w){
+        const hit=(ball.x-paddle.x)/paddle.w,angle=(hit-0.5)*Math.PI*0.7;
+        const sm=1+(level-1)*0.15,spd=Math.sqrt(ball.dx*ball.dx+ball.dy*ball.dy),ns=Math.max(spd,INITIAL_BALL_SPEED*sm);
+        ball.dx=Math.sin(angle)*ns;ball.dy=-Math.cos(angle)*ns;ball.y=paddle.y-ball.r-1;
+      }
+      let hitBrick=false;
+      bricks.forEach(b=>{
+        if(!b.alive)return;
+        if(ball.x+ball.r>b.x&&ball.x-ball.r<b.x+b.w&&ball.y+ball.r>b.y&&ball.y-ball.r<b.y+b.h){
+          if(!hitBrick){
+            const oL=(ball.x+ball.r)-b.x,oR=(b.x+b.w)-(ball.x-ball.r),oT=(ball.y+ball.r)-b.y,oB=(b.y+b.h)-(ball.y-ball.r);
+            const min=Math.min(oL,oR,oT,oB);
+            if(min===oL||min===oR)ball.dx=-ball.dx;else ball.dy=-ball.dy;hitBrick=true;
+          }
+          b.hp--;if(b.hp<=0){b.alive=false;score+=10*level;}else{score+=5;}updateUI();
+        }
+      });
+      if(bricks.every(b=>!b.alive)){if(level>=MAX_LEVEL)return win();level++;buildBricks();attachBall();updateUI();}
+      draw();
+    }
+
+    function gameOver(){running=false;cancelAnimationFrame(rafId);saveBest();$finalScore.textContent=score;$gameOverOverlay.classList.remove('hidden');}
+    function win(){running=false;cancelAnimationFrame(rafId);saveBest();$winScore.textContent=score;$winOverlay.classList.remove('hidden');}
+    function saveBest(){if(score>bestScore){bestScore=score;localStorage.setItem('arcade-hs-breakout',bestScore);$best.textContent=bestScore;}}
+    function startGame(){
+      $startOverlay.classList.add('hidden');$gameOverOverlay.classList.add('hidden');$winOverlay.classList.add('hidden');
+      init(true);running=true;started=true;cancelAnimationFrame(rafId);rafId=requestAnimationFrame(loop);
+    }
+    document.addEventListener('keydown',(e)=>{
+      keys[e.code]=true;
+      if(['ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
+      if(!started&&e.code==='Space'){startGame();return;}
+      if(e.code==='Space'&&running&&ballAttached)launchBall();
+    });
+    document.addEventListener('keyup',(e)=>{keys[e.code]=false;});
+    document.getElementById('restartBtn').addEventListener('click',startGame);
+    document.getElementById('playAgainBtn').addEventListener('click',startGame);
+    document.getElementById('winPlayAgainBtn').addEventListener('click',startGame);
+    init(true);
+  })();
+  </script>
+</body>
+</html>
